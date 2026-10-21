@@ -52,7 +52,9 @@ $sums=@($release.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' })
 if ($sums.Count -ne 1 -or $sums[0].digest -ne ('sha256:'+(Get-FileHash -LiteralPath $checksums -Algorithm SHA256).Hash.ToLowerInvariant())) {
     throw 'Uploaded checksum file mismatch. Draft was not published.'
 }
-gh release edit $tag --repo $repo --draft=false --latest
+gh release edit $tag --repo $repo --tag $tag --target $head --draft=false --prerelease=false --latest --title ([PCLCS.LauncherBranding]::DisplayName + ' ' + $version) --notes-file docs/RELEASE-NOTES.md
 if ($LASTEXITCODE -ne 0) { throw 'Draft verified, but publishing failed. Inspect the existing release.' }
 gh release view $tag --repo $repo --json url,isDraft,tagName
 if ($LASTEXITCODE -ne 0) { throw 'Release published but final readback failed.' }
+$publishedHead=gh api "repos/$repo/commits/$tag" --jq '.sha'
+if ($LASTEXITCODE -ne 0 -or $publishedHead -ne $head) { throw 'Published tag does not resolve to the reviewed source commit.' }
