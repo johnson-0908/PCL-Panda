@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$SourceOnly)
+param([switch]$SourceOnly, [string]$BinaryDirectory)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'Run with Windows PowerShell 5.1 (powershell.exe).' }
@@ -10,11 +10,20 @@ function Assert-True([bool]$Condition, [string]$Name) {
 }
 Add-Type -Path (Join-Path $root 'PCLCS\Launch\PandaAuthenticationPolicy.cs')
 $policy = [PCLCS.PandaAuthenticationPolicy]
-foreach ($type in @(-1,0,1,2,3,4,6,99)) {
+foreach ($type in @(-1,1,2,3,4,6,99)) {
     Assert-True (-not $policy::IsAllowedLoginType($type)) "Reject login type $type"
 }
 Assert-True ($policy::IsAllowedLoginType(5)) 'Accept Microsoft login type'
+Assert-True ($policy::IsAllowedLoginType(0)) 'Restore explicit offline login type'
 $uuid = '123456781234423481231234567890ab'
+Assert-True ($policy::IsValidLaunchSession(0,'Legacy',$uuid,$uuid,'OfflinePlayer')) 'Accept explicit offline session'
+Assert-True ($policy::IsValidLaunchSession(5,'Microsoft','synthetic-test-token',$uuid,'TestPlayer')) 'Accept Microsoft launch session'
+Assert-True (-not $policy::IsValidLaunchSession(5,'Legacy',$uuid,$uuid,'OfflinePlayer')) 'Never treat offline login as Microsoft authentication'
+Assert-True (-not $policy::IsValidLaunchSession(0,'Microsoft','synthetic-test-token',$uuid,'TestPlayer')) 'Do not mix Microsoft sessions into offline mode'
+Assert-True (-not $policy::IsValidLaunchSession(0,'Legacy','different-token',$uuid,'OfflinePlayer')) 'Reject inconsistent offline session'
+Assert-True (-not $policy::IsValidLaunchSession(0,'Legacy',$uuid,$uuid,'')) 'Offline name remains required'
+Assert-True (-not $policy::IsValidLaunchSession(0,'Legacy','invalid','invalid','OfflinePlayer')) 'Offline UUID remains validated'
+Assert-True (-not $policy::IsValidLaunchSession(3,'Auth','synthetic-test-token',$uuid,'TestPlayer')) 'Do not enable unrelated login methods'
 Assert-True ($policy::IsValidMicrosoftSession('Microsoft','synthetic-test-token',$uuid,'TestPlayer')) 'Accept valid session structure (not proof of ownership)'
 foreach ($type in @('Legacy','Nide','Auth','', 'microsoft')) {
     Assert-True (-not $policy::IsValidMicrosoftSession($type,'synthetic-test-token',$uuid,'TestPlayer')) "Reject session type $type"
@@ -38,14 +47,18 @@ Assert-True ($launch.Contains('MsLoginStep5(LoginResult.AccessToken)')) 'Fresh o
 Assert-True ($launch.Contains('MsLoginStep6(LoginResult.AccessToken)')) 'Fresh Java profile check present'
 Assert-True (-not $launch.Contains('PCL\LatestLaunch.bat')) 'No independent launch script generation'
 $run = [regex]::Match($launch, '(?s)Private Sub McLaunchRun\(.*?End Sub').Value
-Assert-True ($run.IndexOf('IsValidMicrosoftSession') -ge 0 -and $run.IndexOf('IsValidMicrosoftSession') -lt $run.IndexOf('StartProcess(StartInfo)')) 'Guard precedes Java start'
+Assert-True ($run.IndexOf('IsValidLaunchSession') -ge 0 -and $run.IndexOf('IsValidLaunchSession') -lt $run.IndexOf('StartProcess(StartInfo)')) 'Mode-specific guard precedes Java start'
+$loginUi = Get-Content -LiteralPath (Join-Path $root 'Plain Craft Launcher 2\Pages\PageLaunch\PageLaunchLeft.xaml.vb') -Raw -Encoding UTF8
+Assert-True (-not [regex]::IsMatch($loginUi, '(?m)^\s*LoginPageType = 1\s*$')) 'Do not force Microsoft-only UI'
+Assert-True ($loginUi.Contains('RadioLoginType0.Visibility = Visibility.Visible')) 'Offline selector remains available'
 $main = Get-Content -LiteralPath (Join-Path $root 'Plain Craft Launcher 2\FormMain.xaml.vb') -Raw -Encoding UTF8
 Assert-True (-not $main.Contains('If Not SuppressStartupPrompts AndAlso Settings.Get(Of Integer)("SystemEulaVersion")')) 'EULA is not suppressed'
 Assert-True ($launch.Contains('https://meloong.com/afd/a/LTCat')) 'Author support prompt retained'
 Assert-True ($launch.Contains('https://www.xbox.com/zh-cn/games/store/')) 'Purchase guidance retained'
 $hash = $null
 if (-not $SourceOnly) {
-    $exe = Join-Path $root 'Plain Craft Launcher 2\bin\Plain Craft Launcher 2.exe'
+    if (-not $BinaryDirectory) { $BinaryDirectory = Join-Path $root 'artifacts\builds\launch-dashboard' }
+    $exe = Join-Path $BinaryDirectory 'Plain Craft Launcher 2.exe'
     $base = Split-Path $exe
     $resolver = [ResolveEventHandler] {
         param($sender,$eventArgs)
@@ -65,4 +78,4 @@ if (-not $SourceOnly) {
         $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
     } finally { [AppDomain]::CurrentDomain.remove_ReflectionOnlyAssemblyResolve($resolver) }
 }
-[pscustomobject]@{ Status='PASS'; Assertions=$script:count; ExecutableSha256=$hash; StartedLauncher=$false; LiveOAuthAndGameLaunch='NOT_TESTED'; MinecraftApproval='PENDING'; CurseForgeKey='NOT_CONFIGURED' } | ConvertTo-Json
+[pscustomobject]@{ Status='PASS'; Assertions=$script:count; ExecutableSha256=$hash; StartedLauncher=$false; LiveOAuthAndGameLaunch='NOT_TESTED'; MinecraftApproval='PENDING'; CurseForgeIntegration='DISABLED' } | ConvertTo-Json

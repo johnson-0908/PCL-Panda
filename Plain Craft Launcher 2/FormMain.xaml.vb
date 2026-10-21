@@ -314,7 +314,6 @@ Public Class FormMain
             End If
         End If
         '刷新主题
-        ThemeCheckAll(False)
         ThemeRefresh(Settings.Get(Of Integer)("UiLauncherTheme"))
         '注册拖拽事件（不能直接加 Handles，否则没用；#6340）
         [AddHandler](DragDrop.DragEnterEvent, New DragEventHandler(AddressOf HandleDrag), handledEventsToo:=True)
@@ -374,10 +373,6 @@ Public Class FormMain
         Resizer.addResizerRightDown(ResizerRB)
         Resizer.addResizerRightUp(ResizerRT)
         Resizer.addResizerUp(ResizerT)
-        'PLC 彩蛋
-        If RandomInteger(1, 1000) = 233 Then
-            ShapeTitleLogo.Data = New GeometryConverter().ConvertFromString("M26,29 v-25 h6 a7,7 180 0 1 0,14 h-6 M83,6.5 a10,11.5 180 1 0 0,18 M48,2.5 v24.5 h13.5")
-        End If
         '加载窗口
         ThemeRefreshMain()
         Try
@@ -439,20 +434,16 @@ Public Class FormMain
                 DlClientListMojangLoader.Start(1) 'PCL 会同时根据这里的加载结果决定是否使用官方源进行下载
                 RunCountSub()
                 ServerLoader.Start()
+                ShowLastLauncherUpdateResult()
+                CheckForLauncherUpdates()
                 RunInNewThread(AddressOf TryClearTaskTemp, "TryClearTaskTemp", ThreadPriority.BelowNormal)
             Catch ex As Exception
                 Logger.Error(ex, "初始化加载池运行失败")
             End Try
-            '清理自动更新文件
-            Try
-                FileUtils.Delete(Paths.Base & "PCL\Plain Craft Launcher 2.exe")
-            Catch ex As Exception
-                Logger.Warn(ex, "清理自动更新文件失败")
-            End Try
             '上报
             Telemetry("启动")
-            '第三方身份及服务审批状态放在关于页，避免重复说明弹窗；协议仍需主动同意。
-            Logger.Info("PCL 熊猫启动器（第三方修改版）：Microsoft 应用已配置，Minecraft API 接入仍待审核")
+            '第三方身份放在设置页，服务审批状态保留在文档中；协议仍需主动同意。
+            Logger.Info(LauncherBranding.WindowTitle & "：Microsoft 应用已配置，Minecraft API 接入仍待审核")
         End Sub, "初始化", ThreadPriority.Lowest)
 
         Logger.Info($"第三阶段加载用时：{GetTimeMs() - ApplicationStartTick} ms")
@@ -467,12 +458,6 @@ Public Class FormMain
                              "快照版包含尚未在正式版发布的测试性功能，仅用于赞助者本人尝鲜。所以请不要发给其他人或者用于制作整合包哦！" & vbCrLf &
                              "如果你并非通过赞助或赞助者本人邀请进群获得的本程序，那么可能是有人在违规传播，记得提醒他一下啦。", "快照版使用说明")
             End Select
-            If Settings.Get(Of Integer)("SystemCount") >= 99 Then
-                If ThemeUnlock(6, False) Then
-                    MyMsgBox("你已经使用了 99 次 PCL 啦，感谢你长期以来的支持！" & vbCrLf &
-                             "隐藏主题 铁杆粉 已解锁！", "提示")
-                End If
-            End If
         End If
     End Sub
     '升级与降级事件
@@ -489,29 +474,6 @@ Public Class FormMain
         End If
         '被移除的窗口设置选项
         If Settings.Get(Of Integer)("LaunchArgumentWindowType") = 5 Then Settings.Set("LaunchArgumentWindowType", 1)
-        '修改主题设置项名称
-        If HighestVersionCode <= 207 Then
-            Dim UnlockedTheme As New List(Of String) From {"2"}
-            UnlockedTheme.AddRange(New List(Of String)(Settings.Get(Of String)("UiLauncherThemeHide").ToString.Split("|")))
-            UnlockedTheme.AddRange(New List(Of String)(Settings.Get(Of String)("UiLauncherThemeHide2").ToString.Split("|")))
-            Settings.Set("UiLauncherThemeHide2", UnlockedTheme.Distinct.ToList.Join("|"c))
-        End If
-        '重置欧皇彩
-        If LastVersionCode <= 115 AndAlso Settings.Get(Of String)("UiLauncherThemeHide2").ToString.Split("|").Contains("13") Then
-            Dim UnlockedTheme As New List(Of String)(Settings.Get(Of String)("UiLauncherThemeHide2").ToString.Split("|"))
-            UnlockedTheme.Remove("13")
-            Settings.Set("UiLauncherThemeHide2", UnlockedTheme.Join("|"c))
-            MyMsgBox("由于新版 PCL 修改了欧皇彩的解锁方式，你需要重新解锁欧皇彩。" & vbCrLf &
-                     "多谢各位的理解啦！", "重新解锁提醒")
-        End If
-        '重置滑稽彩
-        If LastVersionCode <= 152 AndAlso Settings.Get(Of String)("UiLauncherThemeHide2").ToString.Split("|").Contains("12") Then
-            Dim UnlockedTheme As New List(Of String)(Settings.Get(Of String)("UiLauncherThemeHide2").ToString.Split("|"))
-            UnlockedTheme.Remove("12")
-            Settings.Set("UiLauncherThemeHide2", UnlockedTheme.Join("|"c))
-            MyMsgBox("由于新版 PCL 修改了滑稽彩的解锁方式，你需要重新解锁滑稽彩。" & vbCrLf &
-                     "多谢各位的理解啦！", "重新解锁提醒")
-        End If
         '移动自定义皮肤
         If LastVersionCode <= 161 AndAlso FileUtils.Exists(Paths.Base & "PCL\CustomSkin.png") AndAlso Not FileUtils.Exists(Paths.AppDataThenName & "CustomSkin.png") Then
             FileUtils.Copy(Paths.Base & "PCL\CustomSkin.png", Paths.AppDataThenName & "CustomSkin.png")
@@ -520,11 +482,6 @@ Public Class FormMain
         If LastVersionCode <= 263 AndAlso FileUtils.Exists(PathTemp & "CustomSkin.png") AndAlso Not FileUtils.Exists(Paths.AppDataThenName & "CustomSkin.png") Then
             FileUtils.Copy(PathTemp & "CustomSkin.png", Paths.AppDataThenName & "CustomSkin.png")
             Logger.Info("已移动离线自定义皮肤 (264)")
-        End If
-        '解除帮助页面的隐藏
-        If LastVersionCode <= 205 Then
-            Settings.Set("UiHiddenOtherHelp", False)
-            Logger.Info("已解除帮助页面的隐藏")
         End If
         '单向迁移微软登录结果（#4836）
         If Not Settings.Get(Of Boolean)("CacheMsV2Migrated") Then
@@ -621,7 +578,6 @@ Public Class FormMain
         On Error Resume Next
         IsProgramEnding = True
         AniControlEnabled += 1
-        If IsUpdateWaitingRestart Then UpdateRestart(False)
         If ReturnCode = ProcessReturnValues.Exception Then
             If Not IsLogShown Then
                 FeedbackInfo()
@@ -746,7 +702,7 @@ Public Class FormMain
         '标题栏显示类型
         Select Case Settings.Get(Of Integer)("UiLogoType")
             Case 0 '无
-                ShapeTitleLogo.Visibility = Visibility.Collapsed
+                LabDefaultTitleLogo.Visibility = Visibility.Collapsed
                 LabTitleLogo.Visibility = Visibility.Collapsed
                 ImageTitleLogo.Visibility = Visibility.Collapsed
                 If Not IsNothing(FrmSetupUI) Then 'TODO: 和 FrmSetupUI 解耦
@@ -755,7 +711,7 @@ Public Class FormMain
                     FrmSetupUI.PanLogoChange.Visibility = Visibility.Collapsed
                 End If
             Case 1 '默认
-                ShapeTitleLogo.Visibility = Visibility.Visible
+                LabDefaultTitleLogo.Visibility = Visibility.Visible
                 LabTitleLogo.Visibility = Visibility.Collapsed
                 ImageTitleLogo.Visibility = Visibility.Collapsed
                 If Not IsNothing(FrmSetupUI) Then
@@ -764,7 +720,7 @@ Public Class FormMain
                     FrmSetupUI.PanLogoChange.Visibility = Visibility.Collapsed
                 End If
             Case 2 '文本
-                ShapeTitleLogo.Visibility = Visibility.Collapsed
+                LabDefaultTitleLogo.Visibility = Visibility.Collapsed
                 LabTitleLogo.Visibility = Visibility.Visible
                 ImageTitleLogo.Visibility = Visibility.Collapsed
                 If Not IsNothing(FrmSetupUI) Then
@@ -773,7 +729,7 @@ Public Class FormMain
                     FrmSetupUI.PanLogoChange.Visibility = Visibility.Collapsed
                 End If
             Case 3 '图片
-                ShapeTitleLogo.Visibility = Visibility.Collapsed
+                LabDefaultTitleLogo.Visibility = Visibility.Collapsed
                 LabTitleLogo.Visibility = Visibility.Collapsed
                 ImageTitleLogo.Visibility = Visibility.Visible
                 If Not IsNothing(FrmSetupUI) Then
@@ -1200,10 +1156,6 @@ Public Class FormMain
         ''' </summary>
         Setup = 3
         ''' <summary>
-        ''' 更多。
-        ''' </summary>
-        Other = 4
-        ''' <summary>
         ''' 版本选择。这是一个副页面。
         ''' </summary>
         InstanceSelect = 5
@@ -1219,10 +1171,6 @@ Public Class FormMain
         ''' 社区资源详情。这是一个副页面。
         ''' </summary>
         ResourceDetail = 8
-        ''' <summary>
-        ''' 帮助详情。这是一个副页面。
-        ''' </summary>
-        HelpDetail = 9
     End Enum
     ''' <summary>
     ''' 次要页面种类。其数值必须与 StackPanel 中的下标一致。
@@ -1241,9 +1189,6 @@ Public Class FormMain
         SetupUI = 2
         SetupSystem = 3
         LinkMain = 0
-        OtherHelp = 0
-        OtherAbout = 1
-        OtherTest = 2
         InstanceOverall = 0
         InstanceSetup = 1
         InstanceModify = 2
@@ -1264,8 +1209,6 @@ Public Class FormMain
                 Return "版本设置 - " & If(PageInstanceLeft.Instance Is Nothing, "未知版本", PageInstanceLeft.Instance.Name)
             Case PageType.ResourceDetail
                 Return CType(Stack.Additional(0), ResourceProject).TranslatedName
-            Case PageType.HelpDetail
-                Return CType(Stack.Additional(0), HelpEntry).Title
             Case Else
                 Return ""
         End Select
@@ -1304,9 +1247,6 @@ Public Class FormMain
                 Case PageType.Setup
                     If FrmSetupLeft Is Nothing Then FrmSetupLeft = New PageSetupLeft
                     Return FrmSetupLeft.PageID
-                Case PageType.Other
-                    If FrmOtherLeft Is Nothing Then FrmOtherLeft = New PageOtherLeft
-                    Return FrmOtherLeft.PageID
                 Case PageType.InstanceSetup
                     If FrmInstanceLeft Is Nothing Then FrmInstanceLeft = New PageInstanceLeft
                     Return FrmInstanceLeft.PageID
@@ -1327,12 +1267,12 @@ Public Class FormMain
         Public Overrides Function Equals(other As Object) As Boolean
             If other Is Nothing Then Return False
             If TypeOf other Is PageStackData Then
-                Dim PageOther As PageStackData = other
-                If Page <> PageOther.Page Then Return False
+                Dim OtherStack As PageStackData = other
+                If Page <> OtherStack.Page Then Return False
                 If Additional Is Nothing Then
-                    Return PageOther.Additional Is Nothing
+                    Return OtherStack.Additional Is Nothing
                 Else
-                    Return PageOther.Additional IsNot Nothing AndAlso Additional.Equals(PageOther.Additional)
+                    Return OtherStack.Additional IsNot Nothing AndAlso Additional.Equals(OtherStack.Additional)
                 End If
             ElseIf TypeOf other Is Integer Then
                 If Page <> other Then Return False
@@ -1359,9 +1299,20 @@ Public Class FormMain
     '引发实际页面切换的入口
     Private IsChangingPage As Boolean = False
     ''' <summary>
+    ''' 判断页面 ID 是否仍受支持，避免旧的自定义事件访问已删除的路由。
+    ''' </summary>
+    Public Shared Function IsPageAvailable(Page As PageType) As Boolean
+        Return [Enum].IsDefined(GetType(PageType), Page)
+    End Function
+
+    ''' <summary>
     ''' 切换页面，并引起对应选择 UI 的改变。
     ''' </summary>
     Public Sub PageChange(Stack As PageStackData, Optional SubType As PageSubType = PageSubType.Default)
+        If Stack Is Nothing OrElse Not IsPageAvailable(Stack.Page) Then
+            Hint("该页面不存在或已移除。", HintType.Red)
+            Return
+        End If
         If PageNameGet(Stack) = "" Then
             '切换到主页面
             PageChangeExit()
@@ -1375,9 +1326,6 @@ Public Class FormMain
                 Case PageType.Setup
                     If FrmSetupLeft Is Nothing Then FrmSetupLeft = New PageSetupLeft
                     CType(FrmSetupLeft.PanItem.Children(SubType), MyListItem).SetChecked(True, True, Stack = PageCurrent)
-                Case PageType.Other
-                    If FrmOtherLeft Is Nothing Then FrmOtherLeft = New PageOtherLeft
-                    CType(FrmOtherLeft.PanItem.Children(SubType), MyListItem).SetChecked(True, True, Stack = PageCurrent)
             End Select
             PageChangeActual(Stack, SubType)
         Else
@@ -1393,7 +1341,7 @@ Public Class FormMain
     ''' <summary>
     ''' 通过点击导航栏改变页面。
     ''' </summary>
-    Private Sub BtnTitleSelect_Click(sender As MyRadioButton, raiseByMouse As Boolean) Handles BtnTitleSelect0.Check, BtnTitleSelect1.Check, BtnTitleSelect2.Check, BtnTitleSelect3.Check, BtnTitleSelect4.Check
+    Private Sub BtnTitleSelect_Click(sender As MyRadioButton, raiseByMouse As Boolean) Handles BtnTitleSelect0.Check, BtnTitleSelect1.Check, BtnTitleSelect2.Check, BtnTitleSelect3.Check
         If IsChangingPage Then Return
         PageChangeActual(Val(sender.Tag))
     End Sub
@@ -1413,6 +1361,7 @@ Public Class FormMain
     ''' 切换现有页面的实际方法。
     ''' </summary>
     Private Sub PageChangeActual(Stack As PageStackData, Optional SubType As PageSubType = -1)
+        If Stack Is Nothing OrElse Not IsPageAvailable(Stack.Page) Then Return
         If PageCurrent = Stack AndAlso (PageCurrentSub = SubType OrElse SubType = -1) Then Return
         If Stack.Page = PageType.InstanceSetup AndAlso PageInstanceLeft.Instance IsNot Nothing AndAlso McInstanceLock.IsLocked(PageInstanceLeft.Instance) Then
             Hint("该版本正在被修改，暂时无法进入版本设置！", HintType.Red)
@@ -1478,9 +1427,6 @@ Public Class FormMain
                 Case PageType.Setup '设置
                     If FrmSetupLeft Is Nothing Then FrmSetupLeft = New PageSetupLeft
                     PageChangeAnim(FrmSetupLeft, FrmSetupLeft.PageGet(SubType))
-                Case PageType.Other '更多
-                    If FrmOtherLeft Is Nothing Then FrmOtherLeft = New PageOtherLeft
-                    PageChangeAnim(FrmOtherLeft, FrmOtherLeft.PageGet(SubType))
                 Case PageType.InstanceSelect '版本选择
                     If FrmSelectLeft Is Nothing Then FrmSelectLeft = New PageSelectLeft
                     If FrmSelectRight Is Nothing Then FrmSelectRight = New PageSelectRight
@@ -1495,8 +1441,6 @@ Public Class FormMain
                 Case PageType.ResourceDetail '社区资源详情
                     If FrmDownloadResourceDetail Is Nothing Then FrmDownloadResourceDetail = New PageDownloadResourceDetail
                     PageChangeAnim(New MyPageLeft, FrmDownloadResourceDetail)
-                Case PageType.HelpDetail '帮助详情
-                    PageChangeAnim(New MyPageLeft, Stack.Additional(1))
             End Select
 #End Region
 

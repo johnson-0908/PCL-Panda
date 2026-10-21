@@ -23,8 +23,6 @@ Public Class PageInstanceExport
     Private Sub PageInstanceExport_Loaded() Handles Me.Loaded
         AniControlEnabled += 1
         If Not PathUtils.IsSame(CurrentInstance, PageInstanceLeft.Instance.PathVersion) Then RefreshAll() '切换到了另一个版本，重置页面
-        CustomEventService.SetEventData(BtnAdvancedHelp,
-            If(BuildType = BuildTypes.Release, "指南/整合包制作 - Public.json", "指南/整合包制作 - Snapshot.json"))
         AniControlEnabled -= 1
     End Sub
     Public Sub RefreshAll() Implements IRefreshable.Refresh
@@ -620,7 +618,7 @@ Public Class PageInstanceExport
             RunInNewThread(
             Sub()
                 Try
-                    If ModrinthUploadMode Then Return 'Modrinth 上传模式下，不从 CurseForge 获取信息
+                    If ModrinthUploadMode OrElse Not PandaDownloadPolicy.IsCurseForgeAvailable(CurseForgeAPIKey) Then Return
                     Dim CurseForgeHashes = Loader.Input.Select(Function(m) m.CurseForgeHash)
                     Dim CurseForgeRaw As JContainer = DlModRequest("https://api.curseforge.com/v1/fingerprints/432", HttpMethod.Post,
                         $"{{""fingerprints"": [{CurseForgeHashes.Join(",")}]}}", "application/json")("data")("exactMatches")

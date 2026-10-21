@@ -31,6 +31,10 @@ def main():
     if not names:
         raise SystemExit('No tracked/staged files: initialize the repository and stage only reviewed source first.')
     failures = []
+    if not args.staged:
+        # Deleted tracked files are normal in a working tree; include new source as well.
+        names = sorted(set(names + [p.decode('utf-8') for p in git('ls-files', '--others', '--exclude-standard', '-z').split(b'\0') if p]))
+        names = [name for name in names if (ROOT / name).exists() or (ROOT / name).is_symlink()]
     for name in names:
         path = PurePosixPath(name)
         if (FORBIDDEN_PARTS.intersection(p.lower() for p in path.parts)

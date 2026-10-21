@@ -78,6 +78,11 @@ Public Class PageResource
 
     Private Sub PageResource_Loaded(sender As Object, e As EventArgs) Handles Me.Loaded
         Static IsFirstLoaded As Boolean = False
+        Dim HasCurseForge = PandaDownloadPolicy.IsCurseForgeAvailable(CurseForgeAPIKey)
+        ItemSourceCurseForge.IsEnabled = HasCurseForge
+        ItemSourceCurseForge.Visibility = If(HasCurseForge, Visibility.Visible, Visibility.Collapsed)
+        ItemSourceCurseForge.ToolTip = If(HasCurseForge, Nothing, PandaDownloadPolicy.GetCurseForgeUnavailableReason(CurseForgeAPIKey))
+        CType(ComboSearchSource.Items(0), MyComboBoxItem).Content = If(HasCurseForge, "全部", "可用来源")
         '不知道从 Initialized 改成 Loaded 会不会有问题，但用 Initialized 会导致初始的筛选器修改被覆盖回默认值
         If TargetInstance IsNot Nothing Then
             '设置目标

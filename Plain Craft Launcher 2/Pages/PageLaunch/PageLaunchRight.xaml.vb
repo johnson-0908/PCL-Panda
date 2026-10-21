@@ -1,16 +1,99 @@
-Imports System.Windows.Threading
+﻿Imports System.Windows.Threading
 
 Public Class PageLaunchRight
     Implements IRefreshable, IDispatcherUnhandledException
 
     Private Sub Init() Handles Me.Loaded
         PanBack.ScrollToHome()
+        RefreshDashboard()
+        If Not DashboardEventsAttached Then
+            DashboardEventsAttached = True
+            AddHandler McLaunchLoader.OnStateChangedUi, AddressOf RefreshDashboard
+        End If
         PanLog.Visibility = ModeDebug.ToVisibility
         '快照版提示
         PanHint.Visibility =
             (BuildType <> BuildTypes.Release AndAlso VersionBranchMain = "Official" AndAlso
              CurrentRank < DonationRank.Rank23 AndAlso Not Settings.Get(Of Boolean)("HintSnapshot")).ToVisibility
     End Sub
+
+#Region "内置启动主页"
+
+    Private DashboardEventsAttached As Boolean
+
+    '只读取已经加载的版本信息，不重复扫描目录、不触发登录或网络请求。
+    Public Sub RefreshDashboard()
+        If Not Dispatcher.CheckAccess() Then
+            Dispatcher.BeginInvoke(New Action(AddressOf RefreshDashboard))
+            Return
+        End If
+        If PanDashboard Is Nothing Then Return
+        Dim Instance = McInstanceSelected
+        Dim Loading = McInstanceListLoader.State = LoadState.Loading OrElse McFolderListLoader.State = LoadState.Loading OrElse
+                      McInstanceListLoader.State = LoadState.Waiting OrElse McFolderListLoader.State = LoadState.Waiting
+        PanDashboard.DataContext = PandaLaunchDashboard.Create(Loading, Instance?.Name, Instance?.Info, McFolderSelected,
+            Instance IsNot Nothing AndAlso Instance.State = McInstance.McInstanceState.Error,
+            McLaunchLoader.State = LoadState.Loading)
+        Dim CanSelect = DashboardFeatureVisible("UiHiddenFunctionSelect")
+        BtnDashboardSelect.Visibility = CanSelect.ToVisibility
+        BtnDashboardManage.Visibility = CanSelect.ToVisibility
+        Dim CanDownload = DashboardFeatureVisible("UiHiddenPageDownload")
+        BtnDashboardInstall.Visibility = CanDownload.ToVisibility
+        BtnDashboardResources.Visibility = CanDownload.ToVisibility
+        BtnDashboardImport.Visibility = CanDownload.ToVisibility
+        BtnDashboardSettings.Visibility = (DashboardFeatureVisible("UiHiddenPageSetup") AndAlso DashboardFeatureVisible("UiHiddenSetupLaunch")).ToVisibility
+    End Sub
+
+    Private Function DashboardFeatureVisible(SettingKey As String) As Boolean
+        Return PageSetupUI.HiddenForceShow OrElse Not Settings.Get(Of Boolean)(SettingKey)
+    End Function
+
+    Private Function DashboardCanChangeVersions() As Boolean
+        Return McLaunchLoader.State <> LoadState.Loading AndAlso
+               McInstanceListLoader.State <> LoadState.Loading AndAlso McFolderListLoader.State <> LoadState.Loading AndAlso
+               McInstanceListLoader.State <> LoadState.Waiting AndAlso McFolderListLoader.State <> LoadState.Waiting
+    End Function
+
+    Private Sub DashboardSelect_Click(sender As Object, e As RoutedEventArgs)
+        If Not DashboardCanChangeVersions() OrElse Not DashboardFeatureVisible("UiHiddenFunctionSelect") Then Return
+        FrmLaunchLeft?.BtnVersion_Click()
+    End Sub
+
+    Private Sub DashboardManage_Click(sender As Object, e As RoutedEventArgs)
+        If Not DashboardCanChangeVersions() OrElse Not DashboardFeatureVisible("UiHiddenFunctionSelect") Then Return
+        FrmLaunchLeft?.BtnMore_Click()
+    End Sub
+
+    Private Sub DashboardInstall_Click(sender As Object, e As RoutedEventArgs)
+        If Not DashboardCanChangeVersions() OrElse Not DashboardFeatureVisible("UiHiddenPageDownload") Then Return
+        FrmMain.PageChange(FormMain.PageType.Download, FormMain.PageSubType.DownloadInstall)
+    End Sub
+
+    Private Sub DashboardResources_Click(sender As Object, e As RoutedEventArgs)
+        If Not DashboardFeatureVisible("UiHiddenPageDownload") Then Return
+        FrmMain.PageChange(FormMain.PageType.Download, FormMain.PageSubType.DownloadMod)
+    End Sub
+
+    Private Sub DashboardImport_Click(sender As Object, e As RoutedEventArgs)
+        If Not DashboardCanChangeVersions() OrElse Not DashboardFeatureVisible("UiHiddenPageDownload") Then Return
+        ModpackInstall()
+    End Sub
+
+    Private Sub DashboardSettings_Click(sender As Object, e As RoutedEventArgs)
+        If Not DashboardFeatureVisible("UiHiddenPageSetup") OrElse Not DashboardFeatureVisible("UiHiddenSetupLaunch") Then Return
+        FrmMain.PageChange(FormMain.PageType.Setup, FormMain.PageSubType.SetupLaunch)
+    End Sub
+
+    Private Sub DashboardFolder_Click(sender As Object, e As RoutedEventArgs)
+        Dim Folder = McFolderSelected
+        If String.IsNullOrWhiteSpace(Folder) OrElse Not DirectoryUtils.Exists(Folder) Then
+            Hint("游戏目录尚不存在，请先安装游戏或选择已有目录。")
+            Return
+        End If
+        OpenExplorer(PathUtils.AddSlashSuffix(Folder))
+    End Sub
+
+#End Region
 
 #Region "主页"
 
@@ -42,24 +125,9 @@ Public Class PageLaunchRight
             Case 3
                 '预设
                 Select Case Settings.Get(Of Integer)("UiCustomPreset")
-                    Case 0
-                        Logger.Info("主页预设：你知道吗")
-                        Content = "
-                            <local:MyCard Title=""你知道吗？"" Margin=""0,0,0,15"">
-                                <TextBlock Margin=""25,38,23,15"" FontSize=""13.5"" IsHitTestVisible=""False"" Text=""{hint}"" TextWrapping=""Wrap"" Foreground=""{DynamicResource ColorBrush1}"" />
-                                <local:MyIconButton Height=""22"" Width=""22"" Margin=""9"" VerticalAlignment=""Top"" HorizontalAlignment=""Right"" 
-                                    EventType=""刷新主页"" EventData=""/""
-                                    Logo=""M512.0 838.3c-80.2 0-153.4-29.3-210.2-77.4l75.5-75.5c11.5-11.5 25.8-22.0 25.8-37.0a27.2 27.2 0 0 0-27.1-27.1H104.0c-27.1 0-27.1 23.9-27.1 27.1v271.9a27.1 27.1 0 0 0 27.1 27.1c15.0 0 27.8-16.6 42.5-31.2l77.9-77.9c76.6 67.7 177.1 108.9 287.4 108.9 221.7 0 404.5-166.0 431.2-380.6h-109.8c-25.9 154.2-159.7 271.9-321.3 271.9zM919.9 76.6c-15.0 0-27.8 16.6-42.5 31.3L799.5 185.8c-76.5-67.7-177.1-108.9-287.4-108.9-221.8 0-404.5 166.1-431.3 380.6H190.6c25.9-154.2 159.7-271.9 321.4-271.9 80.2 0 153.4 29.3 210.1 77.4l-75.5 75.5c-11.6 11.5-25.8 22.0-25.8 37.1a27.2 27.2 0 0 0 27.1 27.1h271.9c27.1 0 27.1-23.9 27.1-27.1V103.8a27.1 27.1 0 0 0-27.1-27.1z"" />
-                            </local:MyCard>"
-                    Case 1
-                        Logger.Info("主页预设：回声洞")
-                        Content = "
-                            <local:MyCard Title=""回声洞"" Margin=""0,0,0,15"">
-                                <TextBlock Margin=""25,38,23,15"" FontSize=""13.5"" IsHitTestVisible=""False"" Text=""{cave}"" TextWrapping=""Wrap"" Foreground=""{DynamicResource ColorBrush1}"" />
-                                <local:MyIconButton Height=""22"" Width=""22"" Margin=""9"" VerticalAlignment=""Top"" HorizontalAlignment=""Right"" 
-                                    EventType=""刷新主页"" EventData=""/""
-                                    Logo=""M512.0 838.3c-80.2 0-153.4-29.3-210.2-77.4l75.5-75.5c11.5-11.5 25.8-22.0 25.8-37.0a27.2 27.2 0 0 0-27.1-27.1H104.0c-27.1 0-27.1 23.9-27.1 27.1v271.9a27.1 27.1 0 0 0 27.1 27.1c15.0 0 27.8-16.6 42.5-31.2l77.9-77.9c76.6 67.7 177.1 108.9 287.4 108.9 221.7 0 404.5-166.0 431.2-380.6h-109.8c-25.9 154.2-159.7 271.9-321.3 271.9zM919.9 76.6c-15.0 0-27.8 16.6-42.5 31.3L799.5 185.8c-76.5-67.7-177.1-108.9-287.4-108.9-221.8 0-404.5 166.1-431.3 380.6H190.6c25.9-154.2 159.7-271.9 321.4-271.9 80.2 0 153.4 29.3 210.1 77.4l-75.5 75.5c-11.6 11.5-25.8 22.0-25.8 37.1a27.2 27.2 0 0 0 27.1 27.1h271.9c27.1 0 27.1-23.9 27.1-27.1V103.8a27.1 27.1 0 0 0-27.1-27.1z"" />
-                            </local:MyCard>"
+                    Case 0, 1
+                        '保留旧预设 ID；已移除的百宝箱内容回退到本地游戏空间。
+                        Logger.Info("主页预设：游戏空间")
                     Case 2
                         Logger.Info("主页预设：Minecraft 新闻")
                         Url = "https://mcnews.meloong.com"
@@ -234,18 +302,20 @@ Public Class PageLaunchRight
     Private Sub LoadContent(Content As String)
         Try
             SyncLock LoadContentLock
+                RefreshDashboard()
                 '如果加载目标内容一致则不加载
                 Dim Hash = If(Content, "").GetStableHashCode()
                 If Hash = LoadedContentHash Then Return
                 LoadedContentHash = Hash
                 '实际加载内容
                 PanCustom.Children.Clear()
+                PanCustom.Visibility = Visibility.Collapsed
+                PanDashboard.Visibility = Visibility.Visible
                 If String.IsNullOrWhiteSpace(Content) Then
-                    Logger.Info($"实例化：清空主页 UI，来源为空")
+                    Logger.Info("主页：使用内置游戏空间")
                     Return
                 End If
                 Dim LoadStartTime As Date = Date.Now
-                '修改时应同时修改 PageOtherHelpDetail.Init
                 Content = ArgumentReplace(Content, AddressOf StringUtils.XmlEscape)
                 Do While Content.Contains("xmlns")
                     Content = Content.RegexReplace("xmlns[^""']*(""|')[^""']*(""|')", "").Replace("xmlns", "") '禁止声明命名空间
@@ -253,12 +323,18 @@ Public Class PageLaunchRight
                 Content = "<StackPanel xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" xmlns:sys=""clr-namespace:System;assembly=mscorlib"" xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml"" xmlns:local=""clr-namespace:PCL;assembly=Plain Craft Launcher 2"" xmlns:core=""clr-namespace:MeloongCore;assembly=MeloongCore"" xmlns:corewpf=""clr-namespace:MeloongCore.Wpf;assembly=MeloongCore.Wpf"">" & Content & "</StackPanel>"
                 Logger.Info($"实例化：加载主页 UI 开始，最终内容长度：{Content.Count}")
                 PanCustom.Children.Add(GetObjectFromXML(Content))
+                PanCustom.Visibility = Visibility.Visible
+                PanDashboard.Visibility = Visibility.Collapsed
                 '加载计时
                 Dim LoadCostTime = (Date.Now - LoadStartTime).Milliseconds
                 Logger.Info($"实例化：加载主页 UI 完成，耗时 {LoadCostTime}ms")
                 If LoadCostTime > 3000 Then Hint($"主页加载过于缓慢（花费了 {Math.Round(LoadCostTime / 1000, 1)} 秒），请向主页作者反馈此问题，或暂时停止使用该主页")
             End SyncLock
         Catch ex As Exception
+            LoadedContentHash = Nothing
+            PanCustom.Children.Clear()
+            PanCustom.Visibility = Visibility.Collapsed
+            PanDashboard.Visibility = Visibility.Visible
             Logger.Warn(ex, $"加载失败的主页内容：{vbCrLf}{Content}")
             OnLoadContentFailed(ex)
         End Try

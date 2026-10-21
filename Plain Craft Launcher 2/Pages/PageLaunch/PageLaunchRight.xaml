@@ -6,9 +6,146 @@
     xmlns:behaviors="clr-namespace:PCL.Controls.Behaviors"
     xmlns:local="clr-namespace:PCL" PanScroll="PanBack">
     <local:MyScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" x:Name="PanBack">
-        <StackPanel Name="PanMain" Margin="25,25,25,10" Grid.IsSharedSizeScope="True">
+        <StackPanel Name="PanMain" Margin="22,20,22,14" MaxWidth="1000" Grid.IsSharedSizeScope="True">
             <local:MyHint x:Name="PanHint" RelativeSetup="HintSnapshot" Theme="Blue" CanClose="True" Margin="0,0,0,15"
                           Text="快照版 PCL 包含尚未正式发布的测试功能，仅限赞助者自己使用。&#xa;请不要随意发给其他人，或是用来制作整合包哦！" />
+            <StackPanel x:Name="PanDashboard" Margin="0,0,0,12">
+                <StackPanel.Resources>
+                    <Style x:Key="DashboardButton" TargetType="Button">
+                        <Setter Property="Background" Value="{DynamicResource ColorBrushWhite}" />
+                        <Setter Property="Foreground" Value="{DynamicResource ColorBrush1}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource ColorBrush6}" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Setter Property="Padding" Value="12,9" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Chrome" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ColorBrush8}" />
+                                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource ColorBrush4}" />
+                                        </Trigger>
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource ColorBrush3}" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ColorBrush6}" />
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="Chrome" Property="Opacity" Value="0.45" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                    <Style x:Key="DashboardCaption" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource ColorBrushGray2}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                    </Style>
+                </StackPanel.Resources>
+                <Grid Margin="0,0,0,12">
+                    <TextBlock Text="游戏空间" FontSize="21" FontWeight="SemiBold" Foreground="{DynamicResource ColorBrush1}" />
+                </Grid>
+                <Border x:Name="CardCurrentVersion" Padding="18,15" CornerRadius="12" Background="{DynamicResource ColorBrushWhite}" BorderBrush="{DynamicResource ColorBrush6}" BorderThickness="1" Margin="0,0,0,12">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="当前游戏" Style="{StaticResource DashboardCaption}" VerticalAlignment="Center" />
+                            <Border HorizontalAlignment="Right" Padding="8,3" CornerRadius="8">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource ColorBrush8}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource ColorBrushRedBack}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock x:Name="LabDashboardStatus" Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource ColorBrush2}" />
+                            </Border>
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border CornerRadius="10" Background="{DynamicResource ColorBrush8}" Width="44" Height="44" HorizontalAlignment="Left" VerticalAlignment="Top">
+                                <Viewbox Width="30" Height="32">
+                                    <Canvas Width="32" Height="34">
+                                        <Path Data="M16,1 L31,9 L16,17 L1,9 Z" Fill="{DynamicResource ColorBrush4}" />
+                                        <Path Data="M1,11 L15,19 L15,33 L1,25 Z" Fill="{DynamicResource ColorBrush3}" />
+                                        <Path Data="M17,19 L31,11 L31,25 L17,33 Z" Fill="{DynamicResource ColorBrush2}" />
+                                    </Canvas>
+                                </Viewbox>
+                            </Border>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock x:Name="LabDashboardTitle" Text="{Binding Title}" ToolTip="{Binding Title}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource ColorBrush1}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="LabDashboardDescription" Text="{Binding Description}" ToolTip="{Binding Description}" Style="{StaticResource DashboardCaption}" Margin="0,4,0,0" TextWrapping="Wrap" MaxHeight="32" />
+                            </StackPanel>
+                        </Grid>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button x:Name="BtnDashboardSelect" Style="{StaticResource DashboardButton}" Padding="13,6" Margin="0,0,8,0" Background="{DynamicResource ColorBrush8}" Foreground="{DynamicResource ColorBrush2}" Content="{Binding SelectText}" IsEnabled="{Binding CanSelectVersion}" Click="DashboardSelect_Click" />
+                            <Button x:Name="BtnDashboardManage" Style="{StaticResource DashboardButton}" Padding="13,6" Content="版本设置" IsEnabled="{Binding CanManageVersion}" Click="DashboardManage_Click" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+                <Grid x:Name="PanDashboardActions" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Button x:Name="BtnDashboardInstall" Style="{StaticResource DashboardButton}" Margin="0,0,5,8" IsEnabled="{Binding CanInstall}" Click="DashboardInstall_Click" ToolTip="安装 Minecraft 和模组加载器" AutomationProperties.Name="安装游戏">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Path Width="18" Height="18" Stretch="Uniform" Stroke="{DynamicResource ColorBrush3}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M12,2 L12,16 M7,11 L12,16 L17,11 M3,17 L3,22 L21,22 L21,17" />
+                            <StackPanel Grid.Column="1"><TextBlock Text="安装游戏" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="原版与模组加载器" Style="{StaticResource DashboardCaption}" Margin="0,3,0,0" /></StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button x:Name="BtnDashboardResources" Style="{StaticResource DashboardButton}" Grid.Column="1" Margin="5,0,0,8" Click="DashboardResources_Click" ToolTip="从 Modrinth 下载 Mod、资源包和光影" AutomationProperties.Name="发现资源">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Path Width="18" Height="18" Stretch="Uniform" Stroke="{DynamicResource ColorBrush3}" StrokeThickness="1.8" StrokeLineJoin="Round" Data="M3,3 L10,3 L10,10 L3,10 Z M14,3 L21,3 L21,10 L14,10 Z M3,14 L10,14 L10,21 L3,21 Z M14,14 L21,14 L21,21 L14,21 Z" />
+                            <StackPanel Grid.Column="1"><TextBlock Text="发现资源" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="Mod、材质与光影" Style="{StaticResource DashboardCaption}" Margin="0,3,0,0" /></StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button x:Name="BtnDashboardImport" Style="{StaticResource DashboardButton}" Grid.Row="1" Margin="0,0,5,0" IsEnabled="{Binding CanInstall}" Click="DashboardImport_Click" ToolTip="从本地文件导入整合包" AutomationProperties.Name="导入整合包">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Path Width="18" Height="18" Stretch="Uniform" Stroke="{DynamicResource ColorBrush3}" StrokeThickness="1.8" StrokeLineJoin="Round" Data="M12,2 L22,7 L12,12 L2,7 Z M2,7 L2,18 L12,23 L22,18 L22,7 M12,12 L12,23" />
+                            <StackPanel Grid.Column="1"><TextBlock Text="导入整合包" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="选择本地整合包文件" Style="{StaticResource DashboardCaption}" Margin="0,3,0,0" /></StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button x:Name="BtnDashboardSettings" Style="{StaticResource DashboardButton}" Grid.Row="1" Grid.Column="1" Margin="5,0,0,0" Click="DashboardSettings_Click" ToolTip="设置 Java、内存与游戏启动参数" AutomationProperties.Name="启动设置">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Path Width="18" Height="18" Stretch="Uniform" Stroke="{DynamicResource ColorBrush3}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M3,5 L7,5 M13,5 L21,5 M3,12 L13,12 M19,12 L21,12 M3,19 L5,19 M11,19 L21,19 M7,2 L13,2 L13,8 L7,8 Z M13,9 L19,9 L19,15 L13,15 Z M5,16 L11,16 L11,22 L5,22 Z" />
+                            <StackPanel Grid.Column="1"><TextBlock Text="启动设置" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="Java、内存与参数" Style="{StaticResource DashboardCaption}" Margin="0,3,0,0" /></StackPanel>
+                        </Grid>
+                    </Button>
+                </Grid>
+                <Border x:Name="CardDashboardFolder" Background="{DynamicResource ColorBrushSemiWhite}" CornerRadius="10" Padding="14,11">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="游戏目录" Style="{StaticResource DashboardCaption}" />
+                            <TextBlock x:Name="LabDashboardFolder" Text="{Binding Folder}" ToolTip="{Binding Folder}" Foreground="{DynamicResource ColorBrush1}" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Button x:Name="BtnDashboardFolder" Style="{StaticResource DashboardButton}" Grid.Column="1" Content="打开" Padding="12,6" IsEnabled="{Binding CanOpenFolder}" Click="DashboardFolder_Click" AutomationProperties.Name="打开游戏目录" />
+                    </Grid>
+                </Border>
+            </StackPanel>
             <StackPanel x:Name="PanCustom">
             </StackPanel>
             <local:MyCard Margin="0,0,0,15" Title="启动日志" x:Name="PanLog">

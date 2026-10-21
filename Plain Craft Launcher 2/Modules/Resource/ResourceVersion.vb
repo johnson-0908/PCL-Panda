@@ -78,7 +78,7 @@ Public Class ResourceVersion
     ''' </summary>
     Public ReadOnly Property DownloadAvailable As Boolean
         Get
-            Return FileName IsNot Nothing AndAlso DownloadUrls IsNot Nothing
+            Return FileName IsNot Nothing AndAlso DownloadUrls IsNot Nothing AndAlso DownloadUrls.Any()
         End Get
     End Property
     ''' <summary>
@@ -131,11 +131,11 @@ Public Class ResourceVersion
                 .Hash = CType(Data("hashes"), JArray).ToList.FirstOrDefault(Function(s) s("algo").ToObject(Of Integer) = 1)?("value")?.ToString().Lower()
                 If .Hash Is Nothing Then .Hash = CType(Data("hashes"), JArray).ToList.FirstOrDefault(Function(s) s("algo").ToObject(Of Integer) = 2)?("value")?.ToString().Lower()
                 'DownloadAddress
-                Dim Url = Data("downloadUrl").ToString
-                If Url = "" Then Url = $"https://edge.forgecdn.net/files/{CInt(.Id.ToString.Substring(0, 4))}/{CInt(.Id.ToString.Substring(4))}/{ .FileName}"
-                .DownloadUrls = ParseCurseForgeDownloadUrls(Url.Replace(.FileName, StringUtils.UrlEscape(.FileName))) '对脑残 CurseForge 的下载地址进行多种修正
-                .DownloadUrls.Add(DlSourceModGet(Url)) '添加镜像源；注意 MCIM 源不支持 URL 编码后的文件名，必须传入 URL 编码前的文件名
-                .DownloadUrls = .DownloadUrls.Distinct.ToList '最终去重
+                Dim Url = Data("downloadUrl")?.ToString()
+                '没有下载地址可能意味着作者未允许 API 分发，不根据文件 ID 猜测 CDN 地址。
+                If Not String.IsNullOrWhiteSpace(Url) Then
+                    .DownloadUrls = ParseCurseForgeDownloadUrls(Url.Replace(.FileName, StringUtils.UrlEscape(.FileName)))
+                End If
                 'Dependencies
                 If Data.ContainsKey("dependencies") Then
                     .RawDependencies = Data("dependencies").
@@ -175,7 +175,7 @@ Public Class ResourceVersion
                 If CType(Data("files"), JArray).Any() Then '可能为空
                     Dim File As JToken = Data("files")(0)
                     .FileName = File("filename")
-                    .DownloadUrls = New List(Of String) From {File("url"), DlSourceModGet(File("url"))}.Distinct.ToList '同时添加了镜像源
+                    .DownloadUrls = New List(Of String) From {File("url").ToString()}
                     .Size = File("size")
                     .Hash = File("hashes")("sha1")?.ToString.Lower()
                 End If

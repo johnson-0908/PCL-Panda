@@ -1,7 +1,16 @@
 [CmdletBinding()]
-param([string]$CacheRoot)
+param([string]$CacheRoot, [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo 'artifacts\builds\launch-dashboard' }
+$OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
+$targetExe = Join-Path $OutputDirectory 'Plain Craft Launcher 2.exe'
+# Keep a single output directory. Never create another build to work around a running launcher.
+foreach ($process in @(Get-Process -Name 'Plain Craft Launcher 2' -ErrorAction SilentlyContinue)) {
+    if ($process.Path -and $process.Path.Equals($targetExe, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Close the launcher in '$OutputDirectory' before rebuilding. No extra build directory was created."
+    }
+}
 if (-not $CacheRoot) { $CacheRoot = Join-Path $repo '.cache' }
 $CacheRoot = [IO.Path]::GetFullPath($CacheRoot)
 $dotnet = Join-Path $env:ProgramFiles 'dotnet\dotnet.exe'
@@ -23,11 +32,14 @@ $env:TEMP = Join-Path $CacheRoot 'panda-build-temp'
 $env:TMP = $env:TEMP
 $logDir = Join-Path $repo 'artifacts\logs'
 New-Item -ItemType Directory -Path $env:TEMP,$logDir -Force | Out-Null
+$outputArgs = @('-p:OutDir=' + $OutputDirectory.TrimEnd('\') + '\')
 Push-Location $repo
 try {
     & $dotnet restore 'PCLCS\PCLCS.csproj' --verbosity minimal 2>&1 | Tee-Object -FilePath (Join-Path $logDir 'restore.log')
     if ($LASTEXITCODE -ne 0) { throw "Restore failed: $LASTEXITCODE" }
-    & $msbuild 'Plain Craft Launcher 2\Plain Craft Launcher 2.vbproj' '-p:Configuration=Release' '-p:Platform=AnyCPU' '-p:DebugType=None' '-p:DebugSymbols=false' "-p:PathMap=$repo=/_/pcl-panda" '-verbosity:minimal' '-nologo' 2>&1 | Tee-Object -FilePath (Join-Path $logDir 'build.log')
+    & $msbuild 'Plain Craft Launcher 2\Plain Craft Launcher 2.vbproj' '-p:Configuration=Release' '-p:Platform=AnyCPU' '-p:DebugType=None' '-p:DebugSymbols=false' "-p:PathMap=$repo=/_/pcl-panda" @outputArgs '-verbosity:minimal' '-nologo' 2>&1 | Tee-Object -FilePath (Join-Path $logDir 'build.log')
     if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 } finally { Pop-Location }
-Write-Output 'Build completed. Run scripts/Test-PublicBuild.ps1 with Windows PowerShell next.'
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Apply-Update.ps1') -Destination (Join-Path $OutputDirectory 'Apply-Update.ps1') -Force
+Write-Output "Build completed: $targetExe"
+Write-Output 'Run scripts/Test-PublicBuild.ps1 with Windows PowerShell next.'

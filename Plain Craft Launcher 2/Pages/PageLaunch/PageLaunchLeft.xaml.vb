@@ -95,8 +95,6 @@ Public Class PageLaunchLeft
                         Thread.Sleep(500)
                         RunInUi(Sub() FrmMain.PageChange(FormMain.PageType.Setup))
                         Thread.Sleep(500)
-                        RunInUi(Sub() FrmMain.PageChange(FormMain.PageType.Other))
-                        Thread.Sleep(500)
                         RunInUi(Sub() BtnVersion_Click())
                         Thread.Sleep(500)
                         RunInUi(Sub() BtnMore_Click())
@@ -148,13 +146,9 @@ Public Class PageLaunchLeft
         LabLaunchingDownloadLeft.Visibility = Visibility.Collapsed
         ProgressLaunchingFinished.Width = New GridLength(0, GridUnitType.Star)
         ProgressLaunchingUnfinished.Width = New GridLength(1, GridUnitType.Star)
-        PanLaunchingHint.Opacity = 0
-        PanLaunchingHint.Visibility = Visibility.Collapsed
         PanLaunchingInfo.Width = Double.NaN '重置宽度改变动画
         McLaunchProcess = Nothing
         McLaunchWatcher = Nothing
-        '获取 “你知道吗” 提示
-        LabLaunchingHint.Text = PageOtherTest.GetRandomHint()
         '初始化其他页面
         PanInput.IsHitTestVisible = False
         PanLaunching.IsHitTestVisible = False
@@ -299,8 +293,7 @@ Public Class PageLaunchLeft
         Else
             LoginPageType = Settings.Get(Of Integer)("LoginPageType")
         End If
-        '公开发行版只提供正版登录；后端仍独立检查，不能通过配置切换绕过。
-        LoginPageType = 1
+        '尊重实例的登录设置；默认同时提供正版和离线，不强制切换到 Microsoft。
         Select Case LoginPageType
             Case 0 '正版或离线
 UnknownType:
@@ -605,7 +598,7 @@ Finish:
 #End Region
 
     '版本选择按钮
-    Private Sub BtnVersion_Click() Handles BtnVersion.Click
+    Public Sub BtnVersion_Click() Handles BtnVersion.Click
         If McLaunchLoader.State = LoadState.Loading Then Return
         FrmMain.PageChange(FormMain.PageType.InstanceSelect)
     End Sub
@@ -615,7 +608,6 @@ Finish:
             (FrmMain.PageRight IsNot Nothing AndAlso FrmMain.PageRight.PageState <> MyPageRight.PageStates.ContentStay AndAlso FrmMain.PageRight.PageState <> MyPageRight.PageStates.ContentEnter) Then Return
         '愚人节处理
         If IsAprilEnabled AndAlso Not IsAprilGiveup Then
-            ThemeUnlock(12, False, "隐藏主题 滑稽彩 已解锁！")
             IsAprilGiveup = True
             Settings.Set("AprilYear", Date.Now.Year)
             FrmLaunchLeft.AprilScaleTrans.ScaleX = 1
@@ -691,6 +683,7 @@ ExitRefresh:
         If CurrentState = 3 Then
             FrmLaunchLeft.BtnMore.Visibility = FrmLaunchLeft.BtnVersion.Visibility
         End If
+        FrmLaunchRight?.RefreshDashboard()
     End Sub
     '取消按钮
     Public Sub BtnCancel_Click() Handles BtnCancel.Click
@@ -709,8 +702,8 @@ ExitRefresh:
         End If
     End Sub
     '版本设置按钮
-    Private Sub BtnMore_Click() Handles BtnMore.Click
-        If McLaunchLoader.State = LoadState.Loading Then Return
+    Public Sub BtnMore_Click() Handles BtnMore.Click
+        If McLaunchLoader.State = LoadState.Loading OrElse McInstanceSelected Is Nothing Then Return
         If McInstanceLock.IsLocked(McInstanceSelected) Then
             Hint("该版本正在被修改，暂时无法进入版本设置！", HintType.Red)
             Return
@@ -789,11 +782,9 @@ ExitRefresh:
             If (Not IsLaunched) = (LabLaunchingProgress.Visibility = Visibility.Collapsed) Then 'IsProgressStateChanged
                 LabLaunchingProgress.Visibility = Visibility.Visible
                 LabLaunchingProgressLeft.Visibility = Visibility.Visible
-                If IsLaunched Then PanLaunchingHint.Visibility = Visibility.Visible
                 AnimList.AddRange({
                     AaOpacity(LabLaunchingProgress, If(Not IsLaunched, 1, 0) - LabLaunchingProgress.Opacity, 90),
-                    AaOpacity(LabLaunchingProgressLeft, If(Not IsLaunched, 0.5, 0) - LabLaunchingProgressLeft.Opacity, 90),
-                    AaOpacity(PanLaunchingHint, If(IsLaunched, 1, 0) - PanLaunchingHint.Opacity, 90)
+                    AaOpacity(LabLaunchingProgressLeft, If(Not IsLaunched, 0.5, 0) - LabLaunchingProgressLeft.Opacity, 90)
                 })
             End If
             AniStart(AnimList, "Launching Progress")

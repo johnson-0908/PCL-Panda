@@ -131,18 +131,6 @@ Public Module ModLaunch
                 New LoaderTask(Of Process, Integer)("等待游戏窗口出现", AddressOf McLaunchWait) With {.ProgressWeight = 1},
                 New LoaderTask(Of Integer, Integer)("结束处理", AddressOf McLaunchEnd) With {.ProgressWeight = 1}
             }
-            '内存优化
-            Select Case Settings.Get(Of Integer)("VersionRamOptimize", Instance:=McInstanceSelected)
-                Case 0 '全局
-                    If Settings.Get(Of Boolean)("LaunchArgumentRam") Then '使用全局设置
-                        CType(Loaders(2), LoaderCombo(Of String)).Block = False
-                        Loaders.Insert(3, New LoaderTask(Of Integer, Integer)("内存优化", AddressOf McLaunchMemoryOptimize) With {.ProgressWeight = 30})
-                    End If
-                Case 1 '开启
-                    CType(Loaders(2), LoaderCombo(Of String)).Block = False
-                    Loaders.Insert(3, New LoaderTask(Of Integer, Integer)("内存优化", AddressOf McLaunchMemoryOptimize) With {.ProgressWeight = 30})
-                Case 2 '关闭
-            End Select
             Dim LaunchLoader As New LoaderCombo(Of Object)("Minecraft 启动", Loaders) With {.Show = False}
             If McLoginLoader.State = LoadState.Finished Then McLoginLoader.State = LoadState.Waiting '要求重启登录主加载器，它会自行决定是否启动副加载器
             '等待加载器执行并更新 UI
@@ -203,28 +191,6 @@ NextInner:
                 Throw
             End If
         End Try
-    End Sub
-
-#End Region
-
-#Region "内存优化"
-
-    Private Sub McLaunchMemoryOptimize(Loader As LoaderTask(Of Integer, Integer))
-        McLaunchLog("内存优化开始")
-        Dim Finished As Boolean = False
-        RunInNewThread(
-        Sub()
-            PageOtherTest.MemoryOptimize(False)
-            Finished = True
-        End Sub, "Launch Memory Optimize")
-        Do While Not Finished AndAlso Not Loader.IsCanceled
-            If Loader.Progress < 0.7 Then
-                Loader.Progress += 0.007 '10s
-            Else
-                Loader.Progress += (0.95 - Loader.Progress) * 0.02 '最快 += 0.005
-            End If
-            Thread.Sleep(100)
-        Loop
     End Sub
 
 #End Region
@@ -432,7 +398,7 @@ NextInner:
     ''' </summary>
     Public Function McLoginAble() As String
         If Not PandaAuthenticationPolicy.IsAllowedLoginType(CInt(Settings.Get(Of McLoginType)("LoginType"))) Then
-            Return PandaAuthenticationPolicy.MicrosoftLoginRequired
+            Return PandaAuthenticationPolicy.SupportedLoginRequired
         End If
         Select Case Settings.Get(Of McLoginType)("LoginType")
             Case McLoginType.Ms
@@ -464,7 +430,7 @@ NextInner:
     ''' </summary>
     Public Function McLoginAble(LoginData As McLoginData) As String
         If LoginData Is Nothing OrElse Not PandaAuthenticationPolicy.IsAllowedLoginType(CInt(LoginData.Type)) Then
-            Return PandaAuthenticationPolicy.MicrosoftLoginRequired
+            Return PandaAuthenticationPolicy.SupportedLoginRequired
         End If
         Select Case LoginData.Type
             Case McLoginType.Ms
@@ -624,7 +590,6 @@ SkipLogin:
         End If
         McLaunchLog($"微软登录结束，AccessToken 将在 {DateTimeOffset.FromUnixTimeSeconds(ExpiresAt).LocalDateTime} 过期")
         Settings.Set("HintBuy", True) '关闭正版购买提示
-        If ThemeUnlock(10, False) Then MyMsgBox("感谢你对正版游戏的支持！" & vbCrLf & "隐藏主题 跳票红 已解锁！", "提示")
     End Sub
     Private Sub McLoginServerStart(Data As LoaderTask(Of McLoginServer, McLoginResult))
         Dim Input As McLoginServer = Data.Input
@@ -2085,10 +2050,10 @@ IgnoreCustomSkin:
 
     End Sub
     Private Sub McLaunchRun(Loader As LoaderTask(Of Integer, Process))
-        '最后一道进程启动检查，避免 UI 或配置将非正版会话传到 Java 启动入口。
-        If McLoginLoader.Input Is Nothing OrElse Not PandaAuthenticationPolicy.IsAllowedLoginType(CInt(McLoginLoader.Input.Type)) OrElse
-            Not PandaAuthenticationPolicy.IsValidMicrosoftSession(McLoginLoader.Output.Type, McLoginLoader.Output.AccessToken, McLoginLoader.Output.Uuid, McLoginLoader.Output.Name) Then
-            Throw New InvalidOperationException(PandaAuthenticationPolicy.MicrosoftLoginRequired)
+        '按用户明确选择的模式检查会话；离线会话不能作为 Microsoft 会话进入启动入口。
+        If McLoginLoader.Input Is Nothing OrElse
+            Not PandaAuthenticationPolicy.IsValidLaunchSession(CInt(McLoginLoader.Input.Type), McLoginLoader.Output.Type, McLoginLoader.Output.AccessToken, McLoginLoader.Output.Uuid, McLoginLoader.Output.Name) Then
+            Throw New InvalidOperationException("登录会话与所选登录方式不匹配，请重新选择账号。")
         End If
         If Loader.IsCanceled Then Throw New OperationCanceledException
 

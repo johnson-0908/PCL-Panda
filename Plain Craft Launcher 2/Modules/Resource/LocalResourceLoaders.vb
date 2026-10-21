@@ -206,6 +206,7 @@ Public Module LocalResourceLoaders
         RunInNewThread(
         Sub()
             Try
+                If Not PandaDownloadPolicy.IsCurseForgeAvailable(CurseForgeAPIKey) Then Return
                 '步骤 1：获取 Hash 与对应的工程 ID
                 Dim Hashes As New List(Of UInteger)
                 For Each Entry In Mods

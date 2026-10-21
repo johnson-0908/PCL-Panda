@@ -4,7 +4,7 @@ Public Class PageInstanceMod
 #Region "初始化"
 
     Private IsLoad As Boolean = False
-    Public Sub PageOther_Loaded() Handles Me.Loaded
+    Public Sub PageInstanceMod_Loaded() Handles Me.Loaded
 
         If FrmMain.PageLast.Page <> FormMain.PageType.ResourceDetail Then PanBack.ScrollToHome()
         AniControlEnabled += 1

@@ -6,7 +6,7 @@ Friend Module ModSecret
     Public Const VersionBranchMain As String = "OpenSource"
     '在开源版的注册表与常规版的注册表隔离，以防数据冲突
     Public Const RegFolder As String = "PCLPanda"
-    '熊猫启动器的公共应用标识，不是客户端密钥；Minecraft 游戏服务接入仍需单独审核。
+    '本修改版的公共应用标识，不是客户端密钥；Minecraft 游戏服务接入仍需单独审核。
     Public Const DefaultOAuthClientId As String = "d1652c9c-65d6-4007-86ff-cdfbe048e978"
     '允许开发者在本机覆盖 Client ID，不要求使用者自行注册应用。
     Public OAuthClientId As String = If(String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID")),
@@ -28,16 +28,19 @@ Friend Module ModSecret
     ''' 设置 Headers 的 UA、Referer。
     ''' </summary>
     Friend Sub SecretHeadersSign(Url As String, ByRef Req As HttpRequestMessage, Optional SimulateBrowserHeaders As Boolean = False)
+        If PandaDownloadPolicy.IsCurseForgeApi(Url) AndAlso Not PandaDownloadPolicy.IsCurseForgeAvailable(CurseForgeAPIKey) Then
+            Throw New InvalidOperationException(PandaDownloadPolicy.GetCurseForgeUnavailableReason(CurseForgeAPIKey))
+        End If
         If Not Req.Headers.UserAgent.Any Then
             If Url.Contains("baidupcs.com") OrElse Url.Contains("baidu.com") Then
                 Req.Headers.Add("User-Agent", "LogStatistic")  '#4951
             ElseIf SimulateBrowserHeaders Then
-                Req.Headers.Add("User-Agent", $"PCL2/{VersionBaseName}.{CInt(BuildType)} Mozilla/5.0 AppleWebKit/537.36 Chrome/63.0.3239.132 Safari/537.36")
+                Req.Headers.Add("User-Agent", PandaDownloadPolicy.GetUserAgent(VersionBaseName) & " Mozilla/5.0 AppleWebKit/537.36 Chrome/63.0.3239.132 Safari/537.36")
             Else
-                Req.Headers.Add("User-Agent", $"PCL2/{VersionBaseName}.{CInt(BuildType)}")
+                Req.Headers.Add("User-Agent", PandaDownloadPolicy.GetUserAgent(VersionBaseName))
             End If
         End If
-        If Not SimulateBrowserHeaders Then Req.Headers.Add("Referer", $"http://{VersionCode}.open.pcl2.server/")
+        If Not SimulateBrowserHeaders Then Req.Headers.Add("Referer", "https://github.com/johnson-0908/PCL-Panda")
         If PandaAuthenticationPolicy.ShouldSendCurseForgeKey(Url, CurseForgeAPIKey) Then Req.Headers.Add("x-api-key", CurseForgeAPIKey)
     End Sub
 
@@ -67,12 +70,23 @@ Friend Module ModSecret
 
     Public ThemeNow As Integer = -1
     Public ColorHue As Integer = 210, ColorSat As Integer = 85, ColorLightAdjust As Integer = 0, ColorHueTopbarDelta As OneOf(Of Integer, Integer()) = 0
-    Public ThemeDontClick As Integer = 0
 
     Public Sub ThemeRefresh(Optional NewTheme As Integer = -1)
         Try
-            If ThemeNow = NewTheme AndAlso NewTheme >= 0 Then Return
-            If NewTheme >= 0 Then ThemeNow = NewTheme
+            Dim SelectedTheme = If(NewTheme >= 0, NewTheme, If(ThemeNow >= 0, ThemeNow, 0))
+            Dim Palette As PandaThemePalette
+            If SelectedTheme = 14 Then
+                Palette = PandaThemePalette.Resolve(SelectedTheme,
+                    Settings.Get(Of Integer)("UiLauncherHue"), Settings.Get(Of Integer)("UiLauncherSat"),
+                    Settings.Get(Of Integer)("UiLauncherDelta"), Settings.Get(Of Integer)("UiLauncherLight"))
+            Else
+                Palette = PandaThemePalette.Resolve(SelectedTheme)
+            End If
+            ThemeNow = Palette.Id
+            ColorHue = Palette.Hue
+            ColorSat = Palette.Saturation
+            ColorLightAdjust = Palette.LightAdjustment
+            ColorHueTopbarDelta = Palette.Delta
 
             Color1 = New MyColor().FromHSL2(ColorHue, ColorSat * 0.2, 25 + ColorLightAdjust * 0.3)
             Color2 = New MyColor().FromHSL2(ColorHue, ColorSat, 45 + ColorLightAdjust)
@@ -112,6 +126,7 @@ Friend Module ModSecret
         End Try
     End Sub
     Public Sub ThemeRefreshMain()
+        If FrmMain Is Nothing Then Return
         RunInUi(
         Sub()
             If Not FrmMain.IsLoaded Then Return
@@ -136,27 +151,13 @@ Friend Module ModSecret
             FrmMain.PanForm.Background.Freeze()
         End Sub)
     End Sub
-    Friend Sub ThemeCheckAll(EffectSetup As Boolean)
-    End Sub
-    Friend Function ThemeCheckOne(Id As Integer) As Boolean
-        Return True
-    End Function
-    Friend Function ThemeUnlock(Id As Integer, Optional ShowDoubleHint As Boolean = True, Optional UnlockHint As String = Nothing) As Boolean
-        Return False
-    End Function
 
 #End Region
 
 #Region "更新"
 
     Friend Sub UpdateCheckByButton()
-        Hint("该版本中不包含更新功能……")
-    End Sub
-
-    Friend IsUpdateWaitingRestart As Boolean = False
-    Public Sub UpdateRestart(TriggerRestartAndByEnd As Boolean)
-    End Sub
-    Public Sub UpdateReplace(ProcessId As Integer, OldFileName As String, NewFileName As String, TriggerRestart As Boolean)
+        CheckForLauncherUpdates(True)
     End Sub
 
     ''' <summary>

@@ -29,7 +29,7 @@ Public Class PageSetupLeft
             ItemLaunch.SetChecked(True, False, False)
         End If
     End Sub
-    Private Sub PageOtherLeft_Unloaded(sender As Object, e As RoutedEventArgs) Handles Me.Unloaded
+    Private Sub PageSetupLeft_Unloaded(sender As Object, e As RoutedEventArgs) Handles Me.Unloaded
         IsPageSwitched = False
     End Sub
 

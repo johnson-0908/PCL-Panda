@@ -21,8 +21,8 @@ Public Class ResourceSearcher
         ''' </summary>
         Public ReadOnly Property CanContinue As Boolean
             Get
-                If Tag.StartsWithF("/") OrElse Not Sources.HasFlagF(ResourcePlatforms.CurseForge) Then Storage.CurseForgeTotal = 0
-                If Tag.EndsWithF("/") OrElse Not Sources.HasFlagF(ResourcePlatforms.Modrinth) Then Storage.ModrinthTotal = 0
+                If Tag.StartsWithF("/") OrElse Not AvailableSources.HasFlagF(ResourcePlatforms.CurseForge) Then Storage.CurseForgeTotal = 0
+                If Tag.EndsWithF("/") OrElse Not AvailableSources.HasFlagF(ResourcePlatforms.Modrinth) Then Storage.ModrinthTotal = 0
                 If Storage.CurseForgeTotal = -1 OrElse Storage.ModrinthTotal = -1 Then Return True
                 Return Storage.CurseForgeOffset < Storage.CurseForgeTotal OrElse Storage.ModrinthOffset < Storage.ModrinthTotal
             End Get
@@ -56,6 +56,11 @@ Public Class ResourceSearcher
         ''' 允许的来源。
         ''' </summary>
         Public Sources As ResourcePlatforms = ResourcePlatforms.Any
+        Public ReadOnly Property AvailableSources As ResourcePlatforms
+            Get
+                Return CType(PandaDownloadPolicy.GetAvailablePlatforms(CInt(Sources), CurseForgeAPIKey), ResourcePlatforms)
+            End Get
+        End Property
         Public Sub New(Type As ResourceTypes, Storage As SearchResult, TargetResultCount As Integer)
             Me.Type = Type
             Me.Storage = Storage
@@ -167,6 +172,7 @@ Public Class ResourceSearcher
 
 #Region "前置检查"
 
+        If Request.AvailableSources = 0 Then Throw New InvalidOperationException(PandaDownloadPolicy.GetCurseForgeUnavailableReason(CurseForgeAPIKey))
         If Storage.Results.Count >= Request.TargetResultCount Then
             Logger.Info($"已有 {Storage.Results.Count} 个结果，多于所需的 {Request.TargetResultCount} 个结果，结束处理")
             Return
@@ -241,7 +247,7 @@ Public Class ResourceSearcher
                 Next
             End Function
             'CurseForge
-            If Request.Sources.HasFlagF(ResourcePlatforms.CurseForge) Then
+            If Request.AvailableSources.HasFlagF(ResourcePlatforms.CurseForge) Then
                 '数据库搜索
                 Static CurseForgeSearchEntries As List(Of SearchEntry(Of WikiEntry)) = GetSearchEntries(ResourcePlatforms.CurseForge).ToList()
                 Dim CurseForgeSearchResults = Search(CurseForgeSearchEntries, RawSearchText, 100, 0.25)
@@ -258,7 +264,7 @@ Public Class ResourceSearcher
                 End If
             End If
             'Modrinth
-            If Request.Sources.HasFlagF(ResourcePlatforms.Modrinth) Then
+            If Request.AvailableSources.HasFlagF(ResourcePlatforms.Modrinth) Then
                 '数据库搜索
                 Static ModrinthSearchEntries As List(Of SearchEntry(Of WikiEntry)) = GetSearchEntries(ResourcePlatforms.Modrinth).ToList()
                 Dim ModrinthSearchResults = Search(ModrinthSearchEntries, RawSearchText, 100, 0.25)
@@ -303,7 +309,7 @@ NextPage:
         Try
 
             'CurseForge 搜索
-            If Request.Sources.HasFlagF(ResourcePlatforms.CurseForge) AndAlso
+            If Request.AvailableSources.HasFlagF(ResourcePlatforms.CurseForge) AndAlso
                Not (Storage.CurseForgeTotal > -1 AndAlso Storage.CurseForgeTotal <= Storage.CurseForgeOffset) AndAlso '剩余的未显示的搜索结果不足
                (Not IsChineseSearch OrElse (IsChineseSearch AndAlso Not String.IsNullOrEmpty(CurseForgeAltSearchText))) Then '如果是中文搜索，就只在有对应搜索关键词的时候才继续
                 WorkThreads.Add(RunInNewThread(
@@ -335,7 +341,7 @@ NextPage:
             End If
 
             'Modrinth 搜索
-            If Request.Sources.HasFlagF(ResourcePlatforms.Modrinth) AndAlso
+            If Request.AvailableSources.HasFlagF(ResourcePlatforms.Modrinth) AndAlso
                Not (Storage.ModrinthTotal > -1 AndAlso Storage.ModrinthTotal <= Storage.ModrinthOffset) AndAlso '剩余的未显示的搜索结果不足
                (Not IsChineseSearch OrElse (IsChineseSearch AndAlso Not String.IsNullOrEmpty(ModrinthAltSearchText))) Then '如果是中文搜索，就只在有对应搜索关键词的时候才继续
                 WorkThreads.Add(RunInNewThread(
@@ -363,7 +369,7 @@ NextPage:
             End If
 
             'Modrinth 直接获取工程
-            If Request.Sources.HasFlagF(ResourcePlatforms.Modrinth) AndAlso
+            If Request.AvailableSources.HasFlagF(ResourcePlatforms.Modrinth) AndAlso
                Not (Storage.ModrinthTotal > -1 AndAlso Storage.ModrinthTotal <= Storage.ModrinthOffset) AndAlso '剩余的未显示的搜索结果不足
                ModrinthSlugs.Any Then '有直接获取的 Slug
                 WorkThreads.Add(RunInNewThread(
@@ -436,7 +442,7 @@ NextPage:
             ElseIf Errors.Any() Then
                 '有结果但是有错误
                 If Errors.Any(Function(e) e.Source = ResourcePlatforms.CurseForge) Then
-                    Storage.ErrorMessage = $"无法连接到 CurseForge，所以目前仅显示了来自 Modrinth 的内容，搜索结果可能不全。{vbCrLf}请稍后再试，或使用 VPN 改善网络环境。"
+                    Storage.ErrorMessage = $"CurseForge 暂不可用，目前仅显示来自 Modrinth 的内容，搜索结果可能不全。{vbCrLf}请检查 CurseForge API Key、服务权限与网络，或选择 Modrinth 继续下载。"
                 Else
                     Storage.ErrorMessage = $"无法连接到 Modrinth，所以目前仅显示了来自 CurseForge 的内容，搜索结果可能不全。{vbCrLf}请稍后再试，或使用 VPN 改善网络环境。"
                 End If
