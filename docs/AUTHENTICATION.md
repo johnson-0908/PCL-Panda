@@ -8,8 +8,10 @@ Mojang or Microsoft release. Application display name: **熊猫启动器**.
 - Microsoft public client application registered; device authorization endpoint
   returned a valid response during setup. This is **not** proof of end-to-end
   Minecraft authentication or Mojang approval.
-- Minecraft Services AppID review: **pending / not approved**.
-- CurseForge API key: **not configured / not approved**.
+- Minecraft Services AppID application submitted on **2026-10-21**;
+  **awaiting review / not approved**.
+- CurseForge API application submitted on **2026-10-21**;
+  **awaiting review / no key received or configured**.
 - No public binary release is promised until authentication has been tested with
   an authorized account after the required service approvals.
 
