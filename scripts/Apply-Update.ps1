@@ -180,6 +180,15 @@ try {
         $log = Join-Path $TargetDirectory 'PCL\Updates\update-error.txt'
         Assert-SafePath $log
         $_.Exception.Message | Set-Content -LiteralPath $log -Encoding UTF8
+        $stateFile = Join-Path $TargetDirectory 'PCL\Updates\result.json'
+        Assert-SafePath $stateFile
+        $priorState = ''
+        if (Test-Path -LiteralPath $stateFile) {
+            $priorState = (Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json).state
+        }
+        if ($priorState -notin @('installing','rollback-failed','rolled-back')) {
+            Save-UpdateState $stateFile 'failed' $ExpectedVersion $_.Exception.Message
+        }
     }
     Write-Error $_ -ErrorAction Continue
 }

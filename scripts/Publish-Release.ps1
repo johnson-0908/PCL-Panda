@@ -37,8 +37,13 @@ $existingTag=git ls-remote --tags origin ('refs/tags/'+$tag)
 if ($LASTEXITCODE -ne 0 -or $existingTag) { throw 'Could not verify that the version tag is new.' }
 gh release create $tag $package $checksums --repo $repo --target $head --draft --title ([PCLCS.LauncherBranding]::DisplayName + " " + $version) --notes-file docs/RELEASE-NOTES.md
 if ($LASTEXITCODE -ne 0) { throw 'Draft creation/upload failed. Inspect the existing draft before retrying.' }
-$release=gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0) { throw 'Could not verify draft.' }
+# An unpublished draft may not yet have a resolvable Git tag. Look up its release ID instead.
+$drafts=gh api "repos/$repo/releases?per_page=100" | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Could not list drafts.' }
+$matching=@($drafts | Where-Object { $_.tag_name -eq $tag -and $_.draft })
+if ($matching.Count -ne 1) { throw 'Could not identify the newly created draft.' }
+$release=gh api ("repos/$repo/releases/"+$matching[0].id) | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Could not verify draft by ID.' }
 $asset=@($release.assets | Where-Object { $_.name -eq 'PCL2-Revived-win-x64.zip' })
 if ($asset.Count -ne 1 -or $asset[0].digest -ne ('sha256:'+$hash) -or $asset[0].size -ne (Get-Item -LiteralPath $package).Length) {
     throw 'Uploaded package digest/size mismatch. Draft was not published.'

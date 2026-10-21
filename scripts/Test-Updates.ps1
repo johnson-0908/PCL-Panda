@@ -111,6 +111,17 @@ Assert-True ((Get-Content -LiteralPath (Join-Path $target $u::ExeName) -Raw) -eq
 $locked=[IO.File]::Open((Join-Path $target 'PCLCS.dll'),[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
 try { Assert-Rejected { Install-LauncherUpdate $target '1.1.0' } 'Locked application is not overwritten' } finally { $locked.Dispose() }
 Assert-True ((Get-Content -LiteralPath (Join-Path $target $u::ExeName) -Raw) -eq 'old:Plain Craft Launcher 2.exe') 'Preflight failure leaves EXE unchanged'
+# A failed helper preflight must leave a visible result for the next launcher startup.
+$errorPreference=$ErrorActionPreference
+$ErrorActionPreference='Continue'
+try {
+    $failureOutput=& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Apply-Update.ps1') -TargetDirectory $target -ExpectedVersion '9.0.0' -NoRestart 2>&1
+    $failureCode=$LASTEXITCODE
+} finally { $ErrorActionPreference=$errorPreference }
+Assert-True ($failureCode -ne 0) 'Helper preflight failure returns nonzero'
+$failedResult=Get-Content -LiteralPath (Join-Path $target 'PCL\Updates\result.json') -Raw | ConvertFrom-Json
+Assert-True ($failedResult.state -eq 'failed') 'Helper preflight error is visible on next startup'
+Assert-True ((Get-Content -LiteralPath (Join-Path $target $u::ExeName) -Raw) -eq 'old:Plain Craft Launcher 2.exe') 'Helper failure preserves installed EXE'
 # Inject a copy failure AFTER the first two application files changed; exercise the actual rollback path.
 $script:copyFailed=$false
 function Copy-Item([string]$LiteralPath,[string]$Destination,[switch]$Force) {
